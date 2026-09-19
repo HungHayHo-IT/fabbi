@@ -120,3 +120,29 @@ async def test_get_single_todo(client: AsyncClient):
     assert response.status_code == 200
     data = response.json()
     assert data["title"] == "Single Todo"
+
+
+@pytest.mark.asyncio
+async def test_user_cannot_read_another_users_todo(client: AsyncClient):
+    user_a_token = await get_auth_token(client, "usera@example.com")
+    user_b_token = await get_auth_token(client, "userb@example.com")
+
+    create_response = await client.post(
+        "/api/v1/todos",
+        json={
+            "title": "User A private todo",
+            "description": "Private",
+        },
+        headers={"Authorization": f"Bearer {user_a_token}"},
+    )
+
+    assert create_response.status_code == 201
+
+    todo_id = create_response.json()["id"]
+
+    response = await client.get(
+        f"/api/v1/todos/{todo_id}",
+        headers={"Authorization": f"Bearer {user_b_token}"},
+    )
+
+    assert response.status_code == 404
