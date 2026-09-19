@@ -146,3 +146,32 @@ async def test_user_cannot_read_another_users_todo(client: AsyncClient):
     )
 
     assert response.status_code == 404
+    
+
+@pytest.mark.asyncio
+async def test_user_cannot_update_another_users_todo(client: AsyncClient):
+    user_a_token = await get_auth_token(client, "update-a@example.com")
+    user_b_token = await get_auth_token(client, "update-b@example.com")
+
+    create_response = await client.post(
+        "/api/v1/todos",
+        json={
+            "title": "User A todo",
+            "description": "Original description",
+        },
+        headers={"Authorization": f"Bearer {user_a_token}"},
+    )
+
+    assert create_response.status_code == 201
+
+    todo_id = create_response.json()["id"]
+
+    response = await client.put(
+        f"/api/v1/todos/{todo_id}",
+        json={
+            "title": "Hacked by User B",
+        },
+        headers={"Authorization": f"Bearer {user_b_token}"},
+    )
+
+    assert response.status_code == 404
