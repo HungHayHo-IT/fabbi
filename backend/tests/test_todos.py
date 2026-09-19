@@ -241,3 +241,65 @@ async def test_todo_list_cache_is_scoped_by_user(client: AsyncClient):
 
     finally:
         app.dependency_overrides.pop(get_redis, None)
+
+
+@pytest.mark.asyncio
+async def test_toggle_completed_from_true_to_false(client: AsyncClient):
+    token = await get_auth_token(client, "toggle@example.com")
+
+    create_response = await client.post(
+        "/api/v1/todos",
+        json={"title": "Toggle Todo"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert create_response.status_code == 201
+    todo_id = create_response.json()["id"]
+
+    # true
+    response = await client.put(
+        f"/api/v1/todos/{todo_id}",
+        json={"completed": True},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["completed"] is True
+
+    # true -> false
+    response = await client.put(
+        f"/api/v1/todos/{todo_id}",
+        json={"completed": False},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["completed"] is False
+    
+@pytest.mark.asyncio
+async def test_partial_update_title_preserves_description(client: AsyncClient):
+    token = await get_auth_token(client, "partial@example.com")
+
+    create_response = await client.post(
+        "/api/v1/todos",
+        json={
+            "title": "Original Title",
+            "description": "Important description",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert create_response.status_code == 201
+    todo_id = create_response.json()["id"]
+
+    response = await client.put(
+        f"/api/v1/todos/{todo_id}",
+        json={"title": "Updated Title"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["title"] == "Updated Title"
+    assert data["description"] == "Important description"
