@@ -175,3 +175,29 @@ async def test_user_cannot_update_another_users_todo(client: AsyncClient):
     )
 
     assert response.status_code == 404
+    
+
+@pytest.mark.asyncio
+async def test_user_cannot_delete_another_users_todo(client: AsyncClient):
+    user_a_token = await get_auth_token(client, "delete-a@example.com")
+    user_b_token = await get_auth_token(client, "delete-b@example.com")
+
+    create_response = await client.post(
+        "/api/v1/todos",
+        json={
+            "title": "User A private todo",
+            "description": "Must not be deleted by User B",
+        },
+        headers={"Authorization": f"Bearer {user_a_token}"},
+    )
+
+    assert create_response.status_code == 201
+
+    todo_id = create_response.json()["id"]
+
+    response = await client.delete(
+        f"/api/v1/todos/{todo_id}",
+        headers={"Authorization": f"Bearer {user_b_token}"},
+    )
+
+    assert response.status_code == 404
