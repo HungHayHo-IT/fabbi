@@ -73,28 +73,35 @@ export function useUpdateTodo() {
       const response = await api.put(`/todos/${id}`, data);
       return response.data;
     },
+
     onMutate: async ({ id, data }) => {
-      // Cancel outgoing queries
       await queryClient.cancelQueries({ queryKey: ["todos"] });
 
-      // Snapshot previous value
-      const previousTodos = queryClient.getQueryData<TodoListResponse>(["todos"]);
+      const previousTodos = queryClient.getQueryData<TodoListResponse>([
+        "todos",
+        1,
+        10000,
+      ]);
 
-      // Optimistically update
       if (previousTodos) {
-        queryClient.setQueryData<TodoListResponse>(["todos"], {
-          ...previousTodos,
-          items: previousTodos.items.map((todo) =>
-            todo.id === id ? { ...todo, ...data } : todo
-          ),
-        });
+        queryClient.setQueryData<TodoListResponse>(
+          ["todos", 1, 10000],
+          {
+            ...previousTodos,
+            items: previousTodos.items.map((todo) =>
+              todo.id === id ? { ...todo, ...data } : todo
+            ),
+          }
+        );
       }
 
       return { previousTodos };
     },
+
     onError: () => {
       toast.error("Failed to update todo");
     },
+
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["todos"] });
     },
