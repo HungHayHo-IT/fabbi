@@ -2,6 +2,9 @@
 
 import pytest
 from httpx import AsyncClient
+from unittest.mock import AsyncMock, MagicMock
+from app.api.deps import get_redis
+from app.main import app
 
 
 async def get_auth_token(client: AsyncClient, email: str = "todo@example.com") -> str:
@@ -201,3 +204,40 @@ async def test_user_cannot_delete_another_users_todo(client: AsyncClient):
     )
 
     assert response.status_code == 404
+
+@pytest.mark.asyncio
+async def test_todo_list_cache_is_scoped_by_user(client: AsyncClient):
+    user_a_token = await get_auth_token(client, "cache-a@example.com")
+    user_b_token = await get_auth_token(client, "cache-b@example.com")
+
+    mock_redis = MagicMock()
+    mock_redis.get = AsyncMock(return_value=None)
+    mock_redis.set = AsyncMock()
+
+    app.dependency_overrides[get_redis] = lambda: mock_redis
+
+    try:
+        response_a = await client.get(
+            "/api/v1/todos",
+            headers={"Authorization": f"Bearer {user_a_token}"},
+        )
+
+        assert response_a.status_code == 200
+
+        response_b = await client.get(
+            "/api/v1/todos",
+            headers={"Authorization": f"Bearer {user_b_token}"},
+        )
+
+        assert response_b.status_code == 200
+
+        cache_keys = [
+            call.args[0]
+            for call in mock_redis.get.await_args_list
+        ]
+
+        assert len(cache_keys) == 2
+        assert cache_keys[0] != cache_keys[1]
+
+    finally:
+        app.dependency_overrides.pop(get_redis, None)
