@@ -2,6 +2,9 @@
 
 import pytest
 from httpx import AsyncClient
+from datetime import timedelta
+
+from app.core.security import create_access_token, verify_token
 
 
 @pytest.mark.asyncio
@@ -75,3 +78,11 @@ async def test_logout(client: AsyncClient):
     )
     assert response.status_code == 200
     assert response.json()["message"] == "Successfully logged out"
+
+def test_expired_token_is_rejected():
+    token = create_access_token(
+        data={"sub": "test-user"},
+        expires_delta=timedelta(seconds=-1),
+    )
+
+    assert verify_token(token) is None

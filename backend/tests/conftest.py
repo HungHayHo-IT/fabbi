@@ -25,13 +25,6 @@ test_session_maker = async_sessionmaker(
 )
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
-
 @pytest.fixture(autouse=True)
 async def setup_db():
     async with test_engine.begin() as conn:
@@ -56,12 +49,17 @@ def override_get_redis():
     mock_redis.get = AsyncMock(return_value=None)
     mock_redis.set = AsyncMock()
     mock_redis.delete = AsyncMock()
+    mock_redis.delete_pattern = AsyncMock()
     return mock_redis
 
 
 app.dependency_overrides[get_db] = override_get_db
-app.dependency_overrides[get_redis] = override_get_redis
 
+@pytest.fixture(autouse=True)
+def override_redis_dependency():
+    app.dependency_overrides[get_redis] = override_get_redis
+    yield
+    app.dependency_overrides.pop(get_redis, None)
 
 @pytest.fixture
 async def client() -> AsyncGenerator[AsyncClient, None]:
